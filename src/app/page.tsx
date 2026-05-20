@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Header } from "@/components/header";
 import { ImageUploader } from "@/components/image-uploader";
@@ -13,10 +13,31 @@ export default function Home() {
   const { isSignedIn } = useUser();
   const [result, setResult] = useState<AircraftIdentification | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCorrecting, setIsCorrecting] = useState(false);
+  const currentImageRef = useRef<string | null>(null);
+
+  const saveToHistory = (imageData: string, data: AircraftIdentification) => {
+    if (data.identified && isSignedIn) {
+      const entry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        imageData,
+        result: data,
+        timestamp: new Date().toISOString(),
+      };
+      const existing = JSON.parse(
+        localStorage.getItem("aerolens-history") || "[]"
+      );
+      localStorage.setItem(
+        "aerolens-history",
+        JSON.stringify([entry, ...existing].slice(0, 50))
+      );
+    }
+  };
 
   const handleIdentify = async (imageData: string) => {
     setIsLoading(true);
     setResult(null);
+    currentImageRef.current = imageData;
 
     try {
       const response = await fetch("/api/identify", {
@@ -32,22 +53,7 @@ export default function Home() {
 
       const data: AircraftIdentification = await response.json();
       setResult(data);
-
-      if (data.identified && isSignedIn) {
-        const entry: HistoryEntry = {
-          id: crypto.randomUUID(),
-          imageData,
-          result: data,
-          timestamp: new Date().toISOString(),
-        };
-        const existing = JSON.parse(
-          localStorage.getItem("aerolens-history") || "[]"
-        );
-        localStorage.setItem(
-          "aerolens-history",
-          JSON.stringify([entry, ...existing].slice(0, 50))
-        );
-      }
+      saveToHistory(imageData, data);
 
       if (data.identified) {
         toast.success(`Identified: ${data.name}`);
@@ -60,6 +66,38 @@ export default function Home() {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCorrection = async (correction: string) => {
+    if (!currentImageRef.current) return;
+    setIsCorrecting(true);
+
+    try {
+      const response = await fetch("/api/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageData: currentImageRef.current,
+          correction,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Re-identification failed");
+      }
+
+      const data: AircraftIdentification = await response.json();
+      setResult(data);
+      saveToHistory(currentImageRef.current, data);
+      toast.success(`Re-identified: ${data.name}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Something went wrong"
+      );
+    } finally {
+      setIsCorrecting(false);
     }
   };
 
@@ -82,7 +120,13 @@ export default function Home() {
 
             <ImageUploader onIdentify={handleIdentify} isLoading={isLoading} />
 
-            {result && <IdentificationResult result={result} />}
+            {result && (
+              <IdentificationResult
+                result={result}
+                onCorrection={handleCorrection}
+                isCorrecting={isCorrecting}
+              />
+            )}
           </div>
         </section>
 
@@ -106,7 +150,7 @@ export default function Home() {
                   </div>
                   <h3 className="font-semibold mb-2">AI-Powered</h3>
                   <p className="text-sm text-muted-foreground">
-                    Powered by Claude AI with deep knowledge of thousands of
+                    Powered by Claude Opus with deep knowledge of thousands of
                     aircraft types from every era and country.
                   </p>
                 </div>

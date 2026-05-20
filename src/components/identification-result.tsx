@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { AircraftIdentification } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import {
   Plane,
   Gauge,
@@ -15,13 +17,28 @@ import {
   Users,
   Factory,
   Target,
+  ThumbsUp,
+  ThumbsDown,
+  Send,
+  Loader2,
+  Eye,
+  Check,
 } from "lucide-react";
 
 interface IdentificationResultProps {
   result: AircraftIdentification;
+  onCorrection?: (correction: string) => void;
+  isCorrecting?: boolean;
 }
 
-export function IdentificationResult({ result }: IdentificationResultProps) {
+export function IdentificationResult({
+  result,
+  onCorrection,
+  isCorrecting,
+}: IdentificationResultProps) {
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [correctionText, setCorrectionText] = useState("");
+
   if (!result.identified) {
     return (
       <Card className="max-w-2xl mx-auto mt-6">
@@ -65,8 +82,15 @@ export function IdentificationResult({ result }: IdentificationResultProps) {
     capacity: "Capacity",
   };
 
+  const handleSubmitCorrection = () => {
+    if (correctionText.trim() && onCorrection) {
+      onCorrection(correctionText.trim());
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto mt-6 space-y-4">
+      {/* Main ID Card */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-4">
@@ -126,6 +150,24 @@ export function IdentificationResult({ result }: IdentificationResultProps) {
         </CardContent>
       </Card>
 
+      {/* Visual Cues */}
+      {result.visualCues && (
+        <Card className="bg-muted/30">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex gap-3">
+              <Eye className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium mb-1">How I identified this</p>
+                <p className="text-sm text-muted-foreground">
+                  {result.visualCues}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Specs */}
       {specs.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
@@ -154,6 +196,7 @@ export function IdentificationResult({ result }: IdentificationResultProps) {
         </Card>
       )}
 
+      {/* Fun Fact */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="pt-5 pb-5">
           <div className="flex gap-3">
@@ -165,6 +208,82 @@ export function IdentificationResult({ result }: IdentificationResultProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Feedback */}
+      {onCorrection && (
+        <Card>
+          <CardContent className="pt-5 pb-5">
+            {feedback === null && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Did we get it right?</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 hover:bg-green-500/10 hover:text-green-600 hover:border-green-500/30"
+                    onClick={() => setFeedback("correct")}
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                    Correct
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 hover:bg-red-500/10 hover:text-red-600 hover:border-red-500/30"
+                    onClick={() => setFeedback("wrong")}
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                    Wrong
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {feedback === "correct" && (
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <Check className="h-5 w-5" />
+                <p className="text-sm font-medium">
+                  Great, glad we nailed it!
+                </p>
+              </div>
+            )}
+
+            {feedback === "wrong" && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">
+                  What aircraft is this? We&apos;ll re-identify with your input.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={correctionText}
+                    onChange={(e) => setCorrectionText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSubmitCorrection();
+                    }}
+                    placeholder="e.g. Boeing 737-800, F-22 Raptor, Cessna 172..."
+                    className="flex-1 rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    disabled={isCorrecting}
+                  />
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    onClick={handleSubmitCorrection}
+                    disabled={!correctionText.trim() || isCorrecting}
+                  >
+                    {isCorrecting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    {isCorrecting ? "Re-identifying..." : "Re-identify"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

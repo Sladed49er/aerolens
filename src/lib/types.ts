@@ -20,6 +20,7 @@ export interface AircraftIdentification {
     capacity?: string;
   };
   confidence: "high" | "medium" | "low";
+  visualCues?: string;
   description: string;
   funFact: string;
   livery?: string;

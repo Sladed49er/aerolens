@@ -16,14 +16,39 @@ export function ImageUploader({ onIdentify, isLoading }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = useCallback((file: File) => {
-    if (!file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+  const convertToJpeg = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        // Cap at 2048px to keep payload reasonable
+        const maxDim = 2048;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.9));
+      };
+      img.src = URL.createObjectURL(file);
+    });
   }, []);
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/") && !file.name.match(/\.(heic|heif)$/i))
+        return;
+      // Convert everything through canvas to guarantee JPEG data URL
+      const jpeg = await convertToJpeg(file);
+      setPreview(jpeg);
+    },
+    [convertToJpeg]
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
